@@ -134,40 +134,63 @@
 bool init_PN532_I2C(uint8_t sda, uint8_t scl, uint8_t reset, uint8_t irq, i2c_port_t i2c_port_number);
 
 // 通用 PN532 函数
+// 配置安全访问模块(SAM)
 bool SAMConfig(void);
+// 获取PN532固件版本
 uint32_t getPN532FirmwareVersion(void);
+// 发送命令并检查应答
 bool sendCommandCheckAck(uint8_t* cmd, uint8_t cmdlen, uint16_t timeout);
+// 写入GPIO引脚状态
 bool writeGPIO(uint8_t pinstate);
+// 读取GPIO引脚状态
 uint8_t readGPIO(void);
+// 设置被动激活重试次数
 bool setPassiveActivationRetries(uint8_t maxRetries);
 
 // ISO14443A 函数
+// 读取被动目标ID
 bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t* uid, uint8_t* uidLength, uint16_t timeout);
+// 与当前已列入列表的对等方交换APDU
 //超时 0 表示无超时 - 将永远阻塞。
 bool inDataExchange(uint8_t* send, uint8_t sendLength, uint8_t* response, uint8_t* responseLength);
+// 列入被动目标
 bool inListPassiveTarget();
 
 // Mifare Classic 函数
+// 检查指定块号是否是扇区中的第一个块
 bool mifareclassic_IsFirstBlock(uint32_t uiBlock);
+// 检查指定块号是否是扇区尾部
 bool mifareclassic_IsTrailerBlock(uint32_t uiBlock);
+// 对MIFARE卡上的内存块进行认证
 uint8_t mifareclassic_AuthenticateBlock(uint8_t* uid, uint8_t uidLen, uint32_t blockNumber, uint8_t keyNumber,
                                         uint8_t* keyData);
+// 读取MIFARE Classic数据块
 uint8_t mifareclassic_ReadDataBlock(uint8_t blockNumber, uint8_t* data);
+// 写入MIFARE Classic数据块
 uint8_t mifareclassic_WriteDataBlock(uint8_t blockNumber, uint8_t* data);
+// 格式化Mifare Classic卡以存储NDEF记录
 uint8_t mifareclassic_FormatNDEF(void);
+// 将NDEF URI记录写入指定扇区
 uint8_t mifareclassic_WriteNDEFURI(uint8_t sectorNumber, uint8_t uriIdentifier, const char* url);
 
 // Mifare Ultralight 函数
+// 读取MIFARE Ultralight页面
 uint8_t mifareultralight_ReadPage(uint8_t page, uint8_t* buffer);
+// 写入MIFARE Ultralight页面
 uint8_t mifareultralight_WritePage(uint8_t page, uint8_t* data);
 
 // NTAG2xx 函数
+// 读取NTAG2xx页面
 uint8_t ntag2xx_ReadPage(uint8_t page, uint8_t* buffer);
+// 写入NTAG2xx页面
 uint8_t ntag2xx_WritePage(uint8_t page, uint8_t* data);
+// 将NDEF URI记录写入NTAG2xx
 uint8_t ntag2xx_WriteNDEFURI(uint8_t uriIdentifier, char* url, uint8_t dataLen);
 
+void writecommand(uint8_t* cmd, uint8_t cmdlen);
 
 //目标命令
+// 以106kbps速率启动为目标模式
 bool initiate_as_target_106();
 
 #endif

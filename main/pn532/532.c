@@ -66,10 +66,11 @@ bool SAMConfig(void);
 static void resetPN532()
 {
     gpio_set_level(RESET_PIN, 1);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
     gpio_set_level(RESET_PIN, 0);
     vTaskDelay(400 / portTICK_PERIOD_MS);
     gpio_set_level(RESET_PIN, 1);
-    vTaskDelay(10 / portTICK_PERIOD_MS); // 复位后执行其他操作前需要的小延迟
+    vTaskDelay(15 / portTICK_PERIOD_MS); // 复位后执行其他操作前需要的小延迟
     //	 请参见数据手册第 209 页的时序图，第 12.23 节。
 }
 
@@ -127,6 +128,13 @@ void writecommand(uint8_t* cmd, uint8_t cmdlen)
 
     esp_err_t result = ESP_OK;
     result = i2c_master_cmd_begin(PN532_I2C_PORT, i2ccmd, I2C_WRITE_TIMEOUT / portTICK_PERIOD_MS);
+
+    ESP_LOGI(TAG, "发送命令：原数据开始");
+    for (int j = 0; j < cmdlen + 9; j++)
+    {
+        ESP_LOGI(TAG, "0x%02X", command[j]);
+    }
+    ESP_LOGI(TAG, "发送命令：原数据结束");
 
     if (result != ESP_OK)
     {
@@ -201,9 +209,9 @@ bool init_PN532_I2C(uint8_t sda, uint8_t scl, uint8_t reset, uint8_t irq, i2c_po
     //要设置的引脚位掩码，例如.GPIO18/19
     io_conf.pin_bit_mask = pintBitMask;
     //禁用下拉模式
-    io_conf.pull_down_en = 0;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     //启用上拉模式
-    io_conf.pull_up_en = 1;
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     //使用给定设置配置 GPIO
     if (gpio_config(&io_conf) != ESP_OK) return false;
 
@@ -222,9 +230,9 @@ bool init_PN532_I2C(uint8_t sda, uint8_t scl, uint8_t reset, uint8_t irq, i2c_po
     //要设置的引脚位掩码，例如.GPIO18/19
     io_conf.pin_bit_mask = pintBitMask;
     //禁用下拉模式
-    io_conf.pull_down_en = 0;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     //启用上拉模式
-    io_conf.pull_up_en = 0;
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     //使用给定设置配置 GPIO
     if (gpio_config(&io_conf) != ESP_OK) return false;
 
