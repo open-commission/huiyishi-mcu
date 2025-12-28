@@ -1,40 +1,71 @@
-#include "esp_log.h"
-#include "pn532/532.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/adc.h"
+#include "driver/gpio.h"
+#include "esp_log.h"
+
+static const char* TAG = "pm2.5 sensor";
+
+// 定义LED控制GPIO引脚
+#define LED_GPIO_PIN 4  // 请根据实际连接修改GPIO引脚
+
+static void pm25_adc_task()
+{
+    uint16_t adc_data[1];
+
+    // 配置GPIO为输出模式
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = (1ULL << LED_GPIO_PIN);
+    io_conf.pull_down_en = 0;
+    io_conf.pull_up_en = 0;
+    gpio_config(&io_conf);
+
+    while (1)
+    {
+        // 设置GPIO为高电平
+        gpio_set_level(LED_GPIO_PIN, 1);
+
+        // 延时280微秒
+        ets_delay_us(280);
+
+        // 读取ADC值
+        if (ESP_OK == adc_read(&adc_data[0]))
+        {
+            printf("read: %d\n", adc_data[0]);
+        }
+
+        // 延时19毫秒
+        ets_delay_us(19);
+
+        // 设置GPIO为低电平
+        gpio_set_level(LED_GPIO_PIN, 0);
+
+        // 延时9600微秒
+        ets_delay_us(9600);
+
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+}
 
 void app_main()
 {
-    bool init_flag = init_PN532_I2C(4, 5, 16, 13, I2C_NUM_0);
-    ESP_LOGI("app_main", "init_flag = %d", init_flag);
+    // 1. 初始化GPIO
+    gpio_set_direction(LED_GPIO_PIN, GPIO_MODE_OUTPUT);
 
-    SAMConfig();
+    // 2. 初始化ADC
+    adc_config_t adc_config;
 
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // 根据menuconfig->Component config->PHY->vdd33_const值调整
+    // 当测量系统电压(ADC_READ_VDD_MODE)时，vdd33_const必须设置为255
+    adc_config.mode = ADC_READ_TOUT_MODE;
+    adc_config.clk_div = 8; // ADC采样时钟 = 80MHz/clk_div = 10MHz
+    ESP_ERROR_CHECK(adc_init(&adc_config));
 
-    uint32_t firmware_version = getPN532FirmwareVersion();
-    ESP_LOGI("app_main", "firmware_version = %d", firmware_version);
-
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-    uint8_t uid[4];
-    uint8_t uidLength = 0;
-
-    // 初始化PN532 I2C等（假设已调用 init_PN532_I2C() 等）
-
-    // 尝试读取卡
-    bool success = readPassiveTargetID(0x00, uid, &uidLength, 1000); // 1秒超时
-
-    if (success && uidLength > 0)
-    {
-        ESP_LOGI("app_main", "找到卡，UID长度=%d, UID=", uidLength);
-        for (int i = 0; i < uidLength; i++)
-        {
-            ESP_LOGI("app_main", "%02X ", uid[i]);
-        }
-    }
-    else
-    {
-        ESP_LOGI("app_main", "未检测到卡或读取失败\n");
-    }
+    // 3. 创建PM2.5传感器读取任务
+    xTaskCreate(pm25_adc_task, "pm25_adc_task", 1024, NULL, 5, NULL);
 }
