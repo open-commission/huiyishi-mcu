@@ -132,35 +132,6 @@ void dht_task(void* p)
     }
 }
 
-
-void guangzhao_task(void* p)
-{
-    // 1. 初始化 ADC
-    adc_init_config();
-
-    uint16_t adc_data;
-
-    while (1)
-    {
-        // 读取 ADC 原始值 (范围: 0 - 1023)
-        if (adc_read(&adc_data) == ESP_OK)
-        {
-            // 计算光照百分比 (假设 1023 是最亮，0 是最暗，实际取决于你的接线)
-            float brightness = (adc_data / 1023.0) * 100.0;
-
-            ESP_LOGI("LIGHT_SENSOR", "ADC 原始值: %d | 估计亮度: %.2f%%", adc_data, brightness);
-        }
-        else
-        {
-            ESP_LOGE("LIGHT_SENSOR", "ADC 读取失败");
-        }
-
-        // 每 500ms 读取一次
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-    }
-}
-
-
 /**
  * @brief 平均值滤波任务
  */
