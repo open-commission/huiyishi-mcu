@@ -1,40 +1,29 @@
-#include "esp_log.h"
-#include "pn532/532.h"
+// #define XIANCHANG_MOD //定义了就是现场的，不定义就是会议室的
+
+#ifdef  XIANCHANG_MOD
+
+#include "xianchang_task.h"
+
+#else  //===========================================================
+
+#include "huiyishi_task.h"
+
+#endif//XIANCHANG_MOD
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 void app_main()
 {
-    bool init_flag = init_PN532_I2C(4, 5, 16, 13, I2C_NUM_0);
-    ESP_LOGI("app_main", "init_flag = %d", init_flag);
-
-    SAMConfig();
-
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-    uint32_t firmware_version = getPN532FirmwareVersion();
-    ESP_LOGI("app_main", "firmware_version = %d", firmware_version);
-
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-    uint8_t uid[4];
-    uint8_t uidLength = 0;
-
-    // 初始化PN532 I2C等（假设已调用 init_PN532_I2C() 等）
-
-    // 尝试读取卡
-    bool success = readPassiveTargetID(0x00, uid, &uidLength, 1000); // 1秒超时
-
-    if (success && uidLength > 0)
-    {
-        ESP_LOGI("app_main", "找到卡，UID长度=%d, UID=", uidLength);
-        for (int i = 0; i < uidLength; i++)
-        {
-            ESP_LOGI("app_main", "%02X ", uid[i]);
-        }
-    }
-    else
-    {
-        ESP_LOGI("app_main", "未检测到卡或读取失败\n");
-    }
+#ifdef  XIANCHANG_MOD
+    xTaskCreate(event_task, "event_task", 2048, NULL, 10, NULL);
+    xTaskCreate(control_task, "control_task", 2048, NULL, 10, NULL);
+    xTaskCreate(jw01_task, "jw01_task", 2048, NULL, 10, NULL);
+    xTaskCreate(dht_task, "dht_task", 2048, NULL, 10, NULL);
+#else  //===========================================================
+    xTaskCreate(event_task, "event_task", 2048, NULL, 10, NULL);
+    xTaskCreate(control_task, "control_task", 2048, NULL, 10, NULL);
+    xTaskCreate(pn532_task, "jw01_task", 2048, NULL, 10, NULL);
+    xTaskCreate(dht_task, "dht_task", 2048, NULL, 10, NULL);
+#endif//XIANCHANG_MOD
 }
