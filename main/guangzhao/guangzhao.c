@@ -6,9 +6,7 @@
 
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "driver/adc.h"
-#include "esp_log.h"
 
 /**
  * @brief ADC 初始化配置
@@ -26,3 +24,4 @@ void adc_init_config()
     // 初始化 ADC
     ESP_ERROR_CHECK(adc_init(&adc_config));
 }
+

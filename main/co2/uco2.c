@@ -10,7 +10,6 @@
 #include "driver/uart.h"
 #include "esp_log.h"
 
-static const char* TAG = "JW01_SENSOR";
 
 // 使用 UART0，读取时建议避开系统日志冲突
 #define JW01_UART_PORT      UART_NUM_0
@@ -32,4 +31,3 @@ void jw01_uart_init()
     uart_driver_install(JW01_UART_PORT, BUF_SIZE * 2, 0, 0, NULL, 0);
     uart_param_config(JW01_UART_PORT, &uart_config);
 }
-

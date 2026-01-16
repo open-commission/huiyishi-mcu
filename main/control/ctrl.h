@@ -21,5 +21,6 @@ typedef enum
 esp_err_t gpio_quick_init(gpio_num_t gpio_num, gpio_util_mode_t mode);
 int gpio_get_level_stable(gpio_num_t gpio_num);
 void gpio_toggle(gpio_num_t gpio_num);
+void control_task(void* p);
 
 #endif //HUIYISHI_MCU_CTRL_H

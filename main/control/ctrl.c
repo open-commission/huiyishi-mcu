@@ -1,6 +1,3 @@
-#ifndef GPIO_MANAGER_H
-#define GPIO_MANAGER_H
-
 #include "ctrl.h"
 
 #include "driver/gpio.h"
@@ -72,32 +69,26 @@ int gpio_get_level_stable(gpio_num_t gpio_num)
     return -1; // 不稳定状态
 }
 
-#endif
-
-
-#define LED_PIN 2   // 板载蓝灯
-#define KEY_PIN 0   // Flash按键
-
-void app_main()
+void control_task(void* p)
 {
     // 1. 一键初始化
-    gpio_quick_init(LED_PIN, GPIO_MODE_LED);
-    gpio_quick_init(KEY_PIN, GPIO_MODE_KEY_INT);
+    gpio_quick_init(2, GPIO_MODE_LED);
+    gpio_quick_init(0, GPIO_MODE_KEY_INT);
 
     ESP_LOGI("APP", "GPIO 系统初始化完成");
 
     while (1)
     {
         // 2. 使用封装好的稳定读取
-        if (gpio_get_level_stable(KEY_PIN) == 0)
+        if (gpio_get_level_stable(2) == 0)
         {
             ESP_LOGI("APP", "检测到按键按下!");
 
             // 3. 翻转电平
-            gpio_toggle(LED_PIN);
+            gpio_toggle(0);
 
             // 等待按键释放，防止重复触发
-            while (gpio_get_level(KEY_PIN) == 0)
+            while (gpio_get_level(2) == 0)
             {
                 vTaskDelay(10 / portTICK_PERIOD_MS);
             }
