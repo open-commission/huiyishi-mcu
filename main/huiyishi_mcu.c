@@ -54,28 +54,15 @@
 //         vTaskDelay(1000 / portTICK_PERIOD_MS);
 //     }
 // }
+#include "task_manager.h"
 
 void app_main()
 {
-    // // 1. 初始化GPIO
-    // gpio_set_direction(LED_GPIO_PIN, GPIO_MODE_OUTPUT);
-    //
-    // // 2. 初始化ADC
-    // adc_config_t adc_config;
-    //
-    // // 根据menuconfig->Component config->PHY->vdd33_const值调整
-    // // 当测量系统电压(ADC_READ_VDD_MODE)时，vdd33_const必须设置为255
-    // adc_config.mode = ADC_READ_TOUT_MODE;
-    // adc_config.clk_div = 8; // ADC采样时钟 = 80MHz/clk_div = 10MHz
-    // ESP_ERROR_CHECK(adc_init(&adc_config));
-    //
-    // // 3. 创建PM2.5传感器读取任务
-    // xTaskCreate(pm25_adc_task, "pm25_adc_task", 1024, NULL, 5, NULL);
-
-    // xTaskCreate(coap_example_thread, "coap", 1024 * 5, NULL, 5, NULL);
-    //
-    // xTaskCreate(coap_observer_notification_task, "coap_resource_notify_observers", 1024 * 5, NULL, 5,
-    //             NULL);
-
-    uart_setup();
+#ifdef XIANCHANG_MOD
+    // 现场模式
+    create_xianchang_tasks();
+#else
+    // 会议室模式
+    create_huiyishi_tasks();
+#endif
 }
