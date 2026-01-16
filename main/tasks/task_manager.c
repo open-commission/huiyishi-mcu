@@ -11,17 +11,16 @@
 // 包含各种任务函数声明
 #include <adc.h>
 
-#include "event.h"
 #include "ctrl.h"
 #include "532.h"
 #include "dht11.h"
 #include "guangzhao.h"
 #include "pm25.h"
 #include "uco2.h"
+#include "driver/uart.h"
 
 void create_huiyishi_tasks(void)
 {
-    xTaskCreate(event_task, "event_task", 2048, NULL, 10, NULL);
     xTaskCreate(control_task, "control_task", 2048, NULL, 10, NULL);
     xTaskCreate(pn532_task, "pn532_task", 2048, NULL, 10, NULL);
     xTaskCreate(dht_task, "dht_task", 2048, NULL, 10, NULL);
@@ -30,7 +29,6 @@ void create_huiyishi_tasks(void)
 
 void create_xianchang_tasks(void)
 {
-    xTaskCreate(event_task, "event_task", 2048, NULL, 10, NULL);
     xTaskCreate(control_task, "control_task", 2048, NULL, 10, NULL);
     xTaskCreate(jw01_task, "jw01_task", 2048, NULL, 10, NULL);
     xTaskCreate(dht_task, "dht_task", 2048, NULL, 10, NULL);
