@@ -72,7 +72,7 @@ int gpio_get_level_stable(gpio_num_t gpio_num)
 void control_task(void* p)
 {
     // 1. 一键初始化
-    gpio_quick_init(2, GPIO_MODE_LED);
+    gpio_quick_init(, GPIO_MODE_RELAY);
     gpio_quick_init(0, GPIO_MODE_KEY_INT);
 
     ESP_LOGI("APP", "GPIO 系统初始化完成");

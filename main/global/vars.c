@@ -9,13 +9,16 @@ volatile huiyishi_data_type huiyishi_data = {
     .kaimen_status = 0,
     .wendu_var = 0.0,
     .shidu_var = 0.0,
-    .guangzhao_var = 0.0
+    .guangzhao_var = 0.0,
+    .rfid_card = "nil"
 };
 
 volatile xianchang_data_type xianchang_data = {
     .baojing_status = 0,
     .tongfeng_status = 0,
     .eryanghuatan_var = 0.0,
+    .wendu_var = 0.0,
+    .shidu_var = 0.0,
     .pm25_var = 0.0,
     .guangzhao_var = 0.0
 };
