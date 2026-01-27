@@ -1,78 +1,128 @@
-//
-// Created by nebula on 2026/1/16.
-//
-
-#include "dht11.h"
-
-#include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
+#include "dht11.h"
 #include "esp_log.h"
 
-// 定义连接 DHT11 的 GPIO 引脚（例如 GPIO4 / D2）
-#define DHT_GPIO_PIN 4
+//引脚定义
+#define DHT11_PIN   14 //定义DHT11的引脚
 
-/**
- * @brief 精确微秒级延时
- * ESP8266 RTOS SDK 建议使用 os_delay_us
- */
-void delay_us(uint32_t us)
+
+//温湿度定义
+uchar ucharFLAG, uchartemp;
+uchar shidu, wendu;
+uchar ucharT_data_H, ucharT_data_L, ucharRH_data_H, ucharRH_data_L, ucharcheckdata;
+uchar ucharT_data_H_temp, ucharT_data_L_temp, ucharRH_data_H_temp, ucharRH_data_L_temp, ucharcheckdata_temp;
+uchar ucharcomdata;
+
+static void InputInitial(void) //设置端口为输入
 {
-    os_delay_us(us);
+    gpio_set_direction(DHT11_PIN, GPIO_MODE_INPUT);
 }
 
-/**
- * @brief 从 DHT11 读取原始数据
- */
-esp_err_t read_dht_raw(uint8_t data[5])
+static void OutputHigh(void) //输出1
 {
-    uint8_t last_state = 1;
-    uint16_t counter = 0;
-    uint8_t j = 0, i = 0;
+    gpio_set_direction(DHT11_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(DHT11_PIN, 1);
+}
 
-    data[0] = data[1] = data[2] = data[3] = data[4] = 0;
+static void OutputLow(void) //输出0
+{
+    gpio_set_direction(DHT11_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(DHT11_PIN, 0);
+}
 
-    // 1. 发送开始信号
-    gpio_set_direction(DHT_GPIO_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_level(DHT_GPIO_PIN, 0);
-    vTaskDelay(20 / portTICK_PERIOD_MS); // 至少拉低 18ms
-    gpio_set_level(DHT_GPIO_PIN, 1);
-    delay_us(30); // 拉高 20-40us
+static uint8 getData() //读取状态
+{
+    return gpio_get_level(DHT11_PIN);
+}
 
-    // 2. 切换为输入模式等待响应
-    gpio_set_direction(DHT_GPIO_PIN, GPIO_MODE_INPUT);
 
-    // 3. 读取 40 bits 数据
-    for (i = 0; i < 85; i++)
+//读取一个字节数据
+static void COM(void) // 温湿写入
+{
+    uchar i;
+    for (i = 0; i < 8; i++)
     {
-        counter = 0;
-        while (gpio_get_level(DHT_GPIO_PIN) == last_state)
-        {
-            counter++;
-            delay_us(1);
-            if (counter == 1000) break;
-        }
-        last_state = gpio_get_level(DHT_GPIO_PIN);
-        if (counter == 1000) break;
+        ucharFLAG = 2;
 
-        // 忽略前 3 个状态转换（响应信号）
-        if ((i >= 4) && (i % 2 == 0))
+        //等待IO口变低，变低后，通过延时去判断是0还是1
+        while ((getData() == 0) && ucharFLAG++) os_delay_us(10);
+        os_delay_us(35); //延时35us
+        uchartemp = 0;
+
+        //如果这个位是1，35us后，还是1，否则为0
+        if (getData() == 1) uchartemp = 1;
+        ucharFLAG = 2;
+
+        //等待IO口变高，变高后，表示可以读取下一位
+        while ((getData() == 1) && ucharFLAG++) os_delay_us(10);
+        if (ucharFLAG == 1)break;
+        ucharcomdata <<= 1;
+        ucharcomdata |= uchartemp;
+    }
+}
+
+void Delay_ms(uint16 ms)
+{
+    int i = 0;
+    for (i = 0; i < ms; i++)
+    {
+        os_delay_us(1000);
+    }
+}
+
+void DHT11(void) //温湿传感启动
+{
+    OutputLow();
+    Delay_ms(19); //>18MS
+    OutputHigh();
+    InputInitial(); //输入
+    os_delay_us(30);
+    if (!getData()) //表示传感器拉低总线
+    {
+        ucharFLAG = 2;
+        //等待总线被传感器拉高
+        while ((!getData()) && ucharFLAG++) os_delay_us(10);
+        ucharFLAG = 2;
+        //等待总线被传感器拉低
+        while ((getData()) && ucharFLAG++) os_delay_us(10);
+        COM(); //读取第1字节，
+        ucharRH_data_H_temp = ucharcomdata;
+        COM(); //读取第2字节，
+        ucharRH_data_L_temp = ucharcomdata;
+        COM(); //读取第3字节，
+        ucharT_data_H_temp = ucharcomdata;
+        COM(); //读取第4字节，
+        ucharT_data_L_temp = ucharcomdata;
+        COM(); //读取第5字节，
+        ucharcheckdata_temp = ucharcomdata;
+        OutputHigh();
+        //判断校验和是否一致
+        uchartemp = (ucharT_data_H_temp + ucharT_data_L_temp + ucharRH_data_H_temp + ucharRH_data_L_temp);
+        if (uchartemp == ucharcheckdata_temp)
         {
-            data[j / 8] <<= 1;
-            if (counter > 30)
-            {
-                // 高电平持续时间判断：26-28us 为 0，70us 为 1
-                data[j / 8] |= 1;
-            }
-            j++;
+            //校验和一致，
+            ucharRH_data_H = ucharRH_data_H_temp;
+            ucharRH_data_L = ucharRH_data_L_temp;
+            ucharT_data_H = ucharT_data_H_temp;
+            ucharT_data_L = ucharT_data_L_temp;
+            ucharcheckdata = ucharcheckdata_temp;
+            //保存温度和湿度
+            shidu = ucharRH_data_H;
+            wendu = ucharT_data_H;
+        }
+        else
+        {
+            shidu = 100;
+            wendu = 100;
         }
     }
-
-    // 4. 校验数据
-    if ((j >= 40) && (data[4] == ((data[0] + data[1] + data[2] + data[3]) & 0xFF)))
+    else //没用成功读取，返回0
     {
-        return ESP_OK;
+        shidu = 0,
+            wendu = 0;
     }
-    return ESP_FAIL;
+
+    OutputHigh(); //输出
 }

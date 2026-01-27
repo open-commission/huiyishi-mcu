@@ -6,10 +6,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
-#include "uart.h"
 
 // 包含各种任务函数声明
 #include <adc.h>
+#include <string.h>
 
 #include "ctrl.h"
 #include "532.h"
@@ -17,19 +17,22 @@
 #include "guangzhao.h"
 #include "pm25.h"
 #include "uco2.h"
+#include "vars.h"
 #include "driver/uart.h"
 
 void create_huiyishi_tasks(void)
 {
-    xTaskCreate(control_task, "control_task", 2048, NULL, 10, NULL);
-    xTaskCreate(pn532_task, "pn532_task", 2048, NULL, 10, NULL);
+    // xTaskCreate(control_task_huiyishi, "control_task", 2048, NULL, 10, NULL);
+    // xTaskCreate(pn532_task, "pn532_task", 2048, NULL, 10, NULL);
     xTaskCreate(dht_task, "dht_task", 2048, NULL, 10, NULL);
-    xTaskCreate(guangzhao_task, "guangzhao_task", 2048, NULL, 10, NULL);
+    // xTaskCreate(guangzhao_task, "guangzhao_task", 2048, NULL, 10, NULL);
+    xTaskCreate(put_task_huiyishi, "put_task", 2048, NULL, 10, NULL);
+    // xTaskCreate(coap_task, "coap_task", 2048, NULL, 10, NULL);
 }
 
 void create_xianchang_tasks(void)
 {
-    xTaskCreate(control_task, "control_task", 2048, NULL, 10, NULL);
+    xTaskCreate(control_task_xianchang, "control_task", 2048, NULL, 10, NULL);
     xTaskCreate(jw01_task, "jw01_task", 2048, NULL, 10, NULL);
     xTaskCreate(dht_task, "dht_task", 2048, NULL, 10, NULL);
     xTaskCreate(pm25_task, "pm25_task", 2048, NULL, 10, NULL);
@@ -42,34 +45,47 @@ void pn532_task(void* pvParameters)
     bool init_flag = init_PN532_I2C(4, 5, 16, 13, I2C_NUM_0);
     ESP_LOGI("app_main", "init_flag = %d", init_flag);
 
-    SAMConfig();
-
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-    uint32_t firmware_version = getPN532FirmwareVersion();
-    ESP_LOGI("app_main", "firmware_version = %d", firmware_version);
-
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-    uint8_t uid[4];
-    uint8_t uidLength = 0;
-
-    // 初始化PN532 I2C等（假设已调用 init_PN532_I2C() 等）
-
-    // 尝试读取卡
-    bool success = readPassiveTargetID(0x00, uid, &uidLength, 1000); // 1秒超时
-
-    if (success && uidLength > 0)
+    while (1)
     {
-        ESP_LOGI("app_main", "找到卡，UID长度=%d, UID=", uidLength);
-        for (int i = 0; i < uidLength; i++)
+        SAMConfig();
+
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+        uint8_t uid[4];
+        uint8_t uidLength = 0;
+
+        // 尝试读取卡
+        bool success = readPassiveTargetID(0x00, uid, &uidLength, 1000); // 1秒超时
+
+        if (success && uidLength > 0)
         {
-            ESP_LOGI("app_main", "%02X ", uid[i]);
+            ESP_LOGI("app_main", "找到卡，UID长度=%d, UID=", uidLength);
+            /* UID 转 HEX 字符串 */
+            huiyishi_data_type tmp;
+            size_t pos = 0;
+            size_t max_len = sizeof(tmp.rfid_card);
+            for (int i = 0; i < uidLength; i++)
+            {
+                ESP_LOGI("app_main", "%02X ", uid[i]);
+                if (pos + 2 >= max_len)
+                    break;
+
+                pos += snprintf(&tmp.rfid_card[pos],
+                                max_len - pos,
+                                "%02X",
+                                uid[i]);
+            }
+            /* 确保字符串结束 */
+            tmp.rfid_card[max_len - 1] = '\0';
+
+            /* 一次性写回 volatile */
+            memcpy((void*)&huiyishi_data, &tmp, sizeof(tmp));
         }
-    }
-    else
-    {
-        ESP_LOGI("app_main", "未检测到卡或读取失败\n");
+        else
+        {
+            ESP_LOGI("app_main", "未检测到卡或读取失败\n");
+        }
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
 
@@ -109,27 +125,34 @@ void jw01_task(void* pvParameters)
     }
 }
 
+static void huiyishi_update_temp_humi(float temperature, float humidity)
+{
+    huiyishi_data_type tmp;
+
+    /* 先拷贝当前值，保留其他字段 */
+    memcpy(&tmp, (const void*)&huiyishi_data, sizeof(tmp));
+
+    tmp.wendu_var = temperature;
+    tmp.shidu_var = humidity;
+
+    /* 一次性写回 volatile */
+    memcpy((void*)&huiyishi_data, &tmp, sizeof(tmp));
+}
+
+
 void dht_task(void* p)
 {
     esp_log_level_set("DHT11_EXAMPLE", ESP_LOG_INFO);
 
-    uint8_t dht_data[5];
-
     while (1)
     {
-        if (read_dht_raw(dht_data) == ESP_OK)
-        {
-            ESP_LOGI("dht11", "湿度: %d.%d %% 湿度, 温度: %d.%d 度",
-                     dht_data[0], dht_data[1], dht_data[2], dht_data[3]);
-        }
-        else
-        {
-            ESP_LOGE("DHT11", "无法从 DHT11 读取数据，请检查接线");
-        }
-        // DHT11 读取频率不要超过 1Hz (1秒一次)
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
+        DHT11(); //读取温湿度
+        ESP_LOGI("wenshidu","T=%d,H=%d %%.", wendu, shidu);
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
+
 
 void guangzhao_task(void* p)
 {
@@ -140,21 +163,30 @@ void guangzhao_task(void* p)
 
     while (1)
     {
-        // 读取 ADC 原始值 (范围: 0 - 1023)
         if (adc_read(&adc_data) == ESP_OK)
         {
-            // 计算光照百分比 (假设 1023 是最亮，0 是最暗，实际取决于你的接线)
-            float brightness = (adc_data / 1023.0) * 100.0;
+            /* ADC → 光照百分比 */
+            float brightness = (adc_data / 1023.0f) * 100.0f;
 
-            ESP_LOGI("LIGHT_SENSOR", "ADC 原始值: %d | 估计亮度: %.2f%%", adc_data, brightness);
+            ESP_LOGI("LIGHT_SENSOR",
+                     "ADC 原始值: %d | 估计亮度: %.2f%%",
+                     adc_data, brightness);
+
+            /* 直接更新 huiyishi_data（一次性写回） */
+            huiyishi_data_type tmp;
+            memcpy(&tmp, (const void*)&huiyishi_data, sizeof(tmp));
+
+            tmp.guangzhao_var = brightness;
+
+            memcpy((void*)&huiyishi_data, &tmp, sizeof(tmp));
         }
         else
         {
             ESP_LOGE("LIGHT_SENSOR", "ADC 读取失败");
         }
 
-        // 每 500ms 读取一次
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        /* 每 1 秒更新一次 */
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 

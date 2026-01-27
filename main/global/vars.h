@@ -20,7 +20,7 @@ typedef struct
     float wendu_var;
     float shidu_var;
     float guangzhao_var;
-    char rfid_card[];
+    char rfid_card[64];
 } huiyishi_data_type;
 
 extern volatile huiyishi_data_type huiyishi_data;
