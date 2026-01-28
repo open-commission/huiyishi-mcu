@@ -24,18 +24,18 @@ void create_huiyishi_tasks(void)
 {
     // xTaskCreate(control_task_huiyishi, "control_task", 2048, NULL, 10, NULL);
     // xTaskCreate(pn532_task, "pn532_task", 2048, NULL, 10, NULL);
-    xTaskCreate(dht_task, "dht_task", 2048, NULL, 10, NULL);
-    // xTaskCreate(guangzhao_task, "guangzhao_task", 2048, NULL, 10, NULL);
-    xTaskCreate(put_task_huiyishi, "put_task", 2048, NULL, 10, NULL);
+    // xTaskCreate(dht_task, "dht_task", 2048, NULL, 10, NULL);
+    xTaskCreate(guangzhao_task, "guangzhao_task", 2048, NULL, 10, NULL);
+    // xTaskCreate(put_task_huiyishi, "put_task", 2048, NULL, 10, NULL);
     // xTaskCreate(coap_task, "coap_task", 2048, NULL, 10, NULL);
 }
 
 void create_xianchang_tasks(void)
 {
     xTaskCreate(control_task_xianchang, "control_task", 2048, NULL, 10, NULL);
-    xTaskCreate(jw01_task, "jw01_task", 2048, NULL, 10, NULL);
-    xTaskCreate(dht_task, "dht_task", 2048, NULL, 10, NULL);
-    xTaskCreate(pm25_task, "pm25_task", 2048, NULL, 10, NULL);
+    // xTaskCreate(jw01_task, "jw01_task", 2048, NULL, 10, NULL);
+    // xTaskCreate(dht_task, "dht_task", 2048, NULL, 10, NULL);
+    // xTaskCreate(pm25_task, "pm25_task", 2048, NULL, 10, NULL);
 }
 
 // 以下是具体的任务实现，从各自模块移至此处
@@ -144,12 +144,20 @@ void dht_task(void* p)
 {
     esp_log_level_set("DHT11_EXAMPLE", ESP_LOG_INFO);
 
+    gpio_config_t io_conf = {
+        .pin_bit_mask = 1ULL << GPIO_NUM_14,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&io_conf);
+
     while (1)
     {
         DHT11(); //读取温湿度
         ESP_LOGI("wenshidu","T=%d,H=%d %%.", wendu, shidu);
-
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
 
@@ -176,7 +184,7 @@ void guangzhao_task(void* p)
             huiyishi_data_type tmp;
             memcpy(&tmp, (const void*)&huiyishi_data, sizeof(tmp));
 
-            tmp.guangzhao_var = brightness;
+            tmp.guangzhao_var = adc_data;
 
             memcpy((void*)&huiyishi_data, &tmp, sizeof(tmp));
         }

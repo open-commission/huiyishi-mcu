@@ -1,5 +1,7 @@
 #include "task_manager.h"
 
+#define XIANCHANG_MOD
+
 void app_main()
 {
 #ifdef XIANCHANG_MOD

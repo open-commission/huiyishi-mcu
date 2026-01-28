@@ -140,28 +140,32 @@ void put_task_huiyishi(void* p)
 
 void control_task_xianchang(void* p)
 {
-    // 1. 一键初始化
-    gpio_quick_init(15, GPIO_MODE_RELAY);
     gpio_quick_init(12, GPIO_MODE_KEY_INT);
 
     ESP_LOGI("APP", "GPIO 系统初始化完成");
 
     while (1)
     {
+        ESP_LOGI("APP", "%d",gpio_get_level_stable(12));
+
         // 2. 使用封装好的稳定读取
         if (gpio_get_level_stable(12) == 0)
         {
             ESP_LOGI("APP", "检测到按键按下!");
 
-            // 3. 翻转电平
-            gpio_toggle(0);
+            huiyishi_data_type tmp;
+            memcpy(&tmp, (const void*)&huiyishi_data, sizeof(tmp));
 
-            // 等待按键释放，防止重复触发
-            while (gpio_get_level(2) == 0)
+            tmp.baojing_status = 1;
+
+            memcpy((void*)&huiyishi_data, &tmp, sizeof(tmp));
+
+            while (gpio_get_level(12) == 0)
             {
                 vTaskDelay(10 / portTICK_PERIOD_MS);
             }
         }
+
         vTaskDelay(200 / portTICK_PERIOD_MS);
     }
 }
