@@ -32,8 +32,8 @@ void create_huiyishi_tasks(void)
 
 void create_xianchang_tasks(void)
 {
-    xTaskCreate(control_task_xianchang, "control_task", 2048, NULL, 10, NULL);
-    // xTaskCreate(jw01_task, "jw01_task", 2048, NULL, 10, NULL);
+    // xTaskCreate(control_task_xianchang, "control_task", 2048, NULL, 10, NULL);
+    xTaskCreate(jw01_task, "jw01_task", 2048, NULL, 10, NULL);
     // xTaskCreate(dht_task, "dht_task", 2048, NULL, 10, NULL);
     // xTaskCreate(pm25_task, "pm25_task", 2048, NULL, 10, NULL);
 }
@@ -91,39 +91,110 @@ void pn532_task(void* pvParameters)
 
 void jw01_task(void* pvParameters)
 {
-    // 1. 初始化串口
-    jw01_uart_init();
+    /* ================= UART1：唯一输出 ================= */
+    uart_config_t uart1_cfg = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    };
 
-    uint8_t data[1024];
+    uart_param_config(UART_NUM_1, &uart1_cfg);
+    uart_driver_install(UART_NUM_1, 0, 0, 0, NULL, 0);
+
+    /* ================= UART0：传感器输入 ================= */
+    uart_config_t uart0_cfg = {
+        .baud_rate = 9600,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    };
+
+    uart_param_config(UART_NUM_0, &uart0_cfg);
+    uart_driver_install(UART_NUM_0, 256, 0, 0, NULL, 0);
+
+    /* ================= 接收缓冲 & 状态 ================= */
+    uint8_t rx_buf[64];
+    uint8_t frame_buf[6]; // 调整为 6 字节
+    uint8_t frame_len = 0;
 
     while (1)
     {
-        // 读取串口数据
-        int len = uart_read_bytes(UART_NUM_0, data, 1024, 100 / portTICK_RATE_MS);
+        int len = uart_read_bytes(
+            UART_NUM_0,
+            rx_buf,
+            sizeof(rx_buf),
+            20 / portTICK_PERIOD_MS
+        );
 
-        if (len >= 4)
+        if (len > 0)
         {
-            for (int i = 0; i <= len - 4; i++)
+            /* 1. 逐字节处理，寻找 0x2C 帧头 */
+            for (int i = 0; i < len; i++)
             {
-                // 查找起始符 0xA5
-                if (data[i] == 0xA5)
-                {
-                    uint8_t h_byte = data[i + 1];
-                    uint8_t l_byte = data[i + 2];
-                    uint8_t checksum = data[i + 3];
+                frame_buf[frame_len++] = rx_buf[i];
 
-                    // 简单校验：前三字节之和取低8位 (部分JW01协议如此，请查阅您的说明书)
-                    if (((data[i] + h_byte + l_byte) & 0xFF) == checksum)
+                // 逻辑 A：如果第一个字节不是 0x2C，说明没对齐，丢弃
+                if (frame_buf[0] != 0x2C)
+                {
+                    frame_len = 0;
+                    continue;
+                }
+
+                // 逻辑 B：凑齐 6 字节开始解析
+                if (frame_len == 6)
+                {
+                    uint16_t sum = 0;
+                    for (int k = 0; k < 5; k++)
+                        sum += frame_buf[k];
+
+                    uint8_t checksum = (uint8_t)sum;
+
+                    if (checksum == frame_buf[5])
                     {
-                        int pm25_val = (h_byte << 8) | l_byte;
-                        ESP_LOGI("JW01", "检测到 CO2 浓度: %d ppm", pm25_val);
+                        /* ===== 校验通过 ===== */
+                        // 改为读取真正变化的位：frame_buf[1] 和 [2]
+                        uint16_t raw = (frame_buf[1] << 8) | frame_buf[2];
+                        float value = raw / 1000.0f; // 如果该传感器单位是 mg/m3 且有三位小数
+
+                        char msg[100];
+                        int n = snprintf(
+                            msg, sizeof(msg),
+                            "[OK] DataHex:%02X%02X Value:%.3f | Full:%02X %02X %02X %02X %02X %02X\r\n",
+                            frame_buf[1], frame_buf[2], value,
+                            frame_buf[0], frame_buf[1], frame_buf[2],
+                            frame_buf[3], frame_buf[4], frame_buf[5]
+                        );
+                        uart_write_bytes(UART_NUM_1, msg, n);
+
+                        frame_len = 0;
+                    }
+                    else
+                    {
+                        /* ===== 校验失败 ===== */
+                        // 只有在 frame_buf[0] 是 2C 的情况下才报校验错
+                        char msg[64];
+                        int n = snprintf(
+                            msg, sizeof(msg),
+                            "[ERR] Checksum Mismatch: calc=%02X recv=%02X\r\n",
+                            checksum, frame_buf[5]
+                        );
+                        uart_write_bytes(UART_NUM_1, msg, n);
+
+                        // 校验失败说明这一组数据不对，滑窗找下一个可能的 2C
+                        memmove(frame_buf, frame_buf + 1, 5);
+                        frame_len = 5;
                     }
                 }
             }
         }
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
+
 
 static void huiyishi_update_temp_humi(float temperature, float humidity)
 {
@@ -156,7 +227,7 @@ void dht_task(void* p)
     while (1)
     {
         DHT11(); //读取温湿度
-        ESP_LOGI("wenshidu","T=%d,H=%d %%.", wendu, shidu);
+        ESP_LOGI("wenshidu", "T=%d,H=%d %%.", wendu, shidu);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
