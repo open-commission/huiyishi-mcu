@@ -33,9 +33,9 @@ void create_huiyishi_tasks(void)
 void create_xianchang_tasks(void)
 {
     // xTaskCreate(control_task_xianchang, "control_task", 2048, NULL, 10, NULL);
-    xTaskCreate(jw01_task, "jw01_task", 2048, NULL, 10, NULL);
+    // xTaskCreate(jw01_task, "jw01_task", 2048, NULL, 10, NULL);
     // xTaskCreate(dht_task, "dht_task", 2048, NULL, 10, NULL);
-    // xTaskCreate(pm25_task, "pm25_task", 2048, NULL, 10, NULL);
+    xTaskCreate(pm25_task, "pm25_task", 2048, NULL, 10, NULL);
 }
 
 // 以下是具体的任务实现，从各自模块移至此处
